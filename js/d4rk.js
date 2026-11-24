@@ -1,5 +1,5 @@
 /* D4RK front end. No framework, no keys: orders are messages your wallet signs; trades are one transaction both wallets sign. */
-import { createWorld } from '/js/world.js?v=1';
+import { createWorld } from '/js/world.js?v=2';
 import { createOcean } from '/js/ocean.js?v=1';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -76,6 +76,60 @@ function decode(el) {
 }
 if (!reduce) { const ioE = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { ioE.unobserve(e.target); decode(e.target); } }), { threshold: 0.6 }); $$('.eyebrow').forEach(el => ioE.observe(el)); }
 addEventListener('pointermove', e => { if (!mk || scrollY > innerHeight) return; const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5; mk.style.setProperty('--rx', (-y * 9).toFixed(2) + 'deg'); mk.style.setProperty('--ry', (x * 12).toFixed(2) + 'deg'); }, { passive: true });
+/* ---------- the mark: four tubes in the dark. They struggle on, then never quite hold.
+   A letter that drops out leaves its outline behind: still there, just hidden. The strips out on the water share the same power. */
+const tubes = $$('.mk span').map(el => ({ el, v: 1, seq: null, i: 0, next: 0, step: 60 }));
+const endTubes = $$('.endmark span').map(el => ({ el, v: 1, seq: null, i: 0, next: 0, step: 60 }));
+const allTubes = tubes.concat(endTubes);
+allTubes.forEach(t => { t.el.dataset.l = t.el.textContent; });
+const SEQ = {
+  ign: [0.3, 0, 0, 0.6, 0.06, 1],
+  ign4: [0.35, 0, 0, 0.7, 0, 0, 0, 0.4, 0.05, 0.9, 0.2, 1],
+  tick: [0.12, 1],
+  stut: [0.08, 1, 0.04, 0.85, 1],
+  sput: [0.05, 0.6, 0.08, 0.92, 0.15, 1],
+  dark: [0.04, 0, 0, 0, 0, 0, 0, 0, 0, 0.3, 0, 0.78, 0.1, 1],
+  dip: [0.5, 0.88, 0.3, 0.96, 0.62, 1],
+};
+let fRaf = 0;
+function setF(t, v) { if (t.v === v) return; t.v = v; t.el.style.setProperty('--f', v); }
+function play(t, name, step, delay = 0) { if (!t) return; t.seq = SEQ[name]; t.i = 0; t.step = step; t.next = performance.now() + delay; if (!fRaf) fRaf = requestAnimationFrame(fTick); }
+function fTick(now) {
+  fRaf = 0; let busy = false;
+  for (const t of allTubes) {
+    if (!t.seq) continue;
+    busy = true;
+    if (now < t.next) continue;
+    setF(t, t.seq[t.i++]); t.next = now + t.step * (0.6 + Math.random() * 0.8);
+    if (t.i >= t.seq.length) t.seq = null;
+  }
+  if (world && tubes.length) { let s = 0; for (const t of tubes) s += t.v; world.power(0.12 + 0.88 * s / tubes.length); }
+  if (busy) fRaf = requestAnimationFrame(fTick);
+}
+if (!reduce && tubes.length) {
+  tubes.forEach(t => setF(t, 0));
+  if (world) { world.power(0.12); world.settle(); }
+  setTimeout(() => tubes.forEach((t, j) => play(t, j === 1 ? 'ign4' : 'ign', 55, j * 240 + (j === 1 ? 160 : 0))), 700);
+  let n = 0;
+  const inView = el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; };
+  const flick = () => setTimeout(() => {
+    if (!document.hidden) {
+      if (scrollY < innerHeight * 0.85) {
+        n++;
+        if (n % 6 === 0) tubes.forEach((t, j) => play(t, 'dip', 48, j * 14));
+        else {
+          const k = Math.random() < 0.38 ? 1 : (Math.random() * tubes.length) | 0, r = Math.random();
+          play(tubes[k], r < 0.46 ? 'stut' : r < 0.76 ? 'sput' : r < 0.88 ? 'tick' : 'dark', r < 0.46 ? 45 : 60);
+          if (Math.random() < 0.2) play(tubes[(k + 1 + ((Math.random() * 3) | 0)) % tubes.length], 'tick', 45, 110);
+        }
+      }
+      const end = $('#end');
+      if (end && endTubes.length && inView(end) && Math.random() < 0.75) play(endTubes[(Math.random() * endTubes.length) | 0], Math.random() < 0.7 ? 'stut' : 'sput', 50);
+    }
+    flick();
+  }, 900 + Math.random() * 2600);
+  setTimeout(flick, 2900);
+}
 let flowI = 0; setInterval(() => { if (document.hidden) return; const fs = $$('#flow .fs'); fs.forEach((el, i) => el.classList.toggle('on', i === flowI)); flowI = (flowI + 1) % fs.length; }, 1500);
 
 /* ---------- sound: deep water, all the time (browsers need one tap first) ---------- */
@@ -173,6 +227,7 @@ async function loadBook() {
     $('#prints').innerHTML = p.prints.length ? p.prints.map(x => `<div class="print"><span class="coin">${tokImg(x)}<span><b>${esc(x.symbol)}</b><small> ${esc(compact(x.tokensUi))}</small></span></span><span class="mono">${fsol(x.sol)} SOL</span><span class="mono hide-m">${px(x.px)} SOL</span><a href="https://solscan.io/tx/${esc(x.sig)}" target="_blank" rel="noopener">${ago(x.ts)} ↗</a></div>`).join('')
       : `<div class="empty"><b>No prints yet.</b>The first trade in the dark lands here.</div>`;
     if (world && s.open > (S._lastOpen || 0)) world.pulse(0.4); S._lastOpen = s.open;
+    if (world) world.orders(s.open);
   } catch (e) { const u = $('#updated'); u.classList.remove('ok'); u.querySelector('span').textContent = 'Book offline · retrying'; }
 }
 
