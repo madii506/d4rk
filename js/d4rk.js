@@ -1,5 +1,5 @@
 /* D4RK front end. No framework, no keys: orders are messages your wallet signs; trades are one transaction both wallets sign. */
-import { createWorld } from '/js/world.js?v=2';
+import { createWorld } from '/js/world.js?v=3';
 import { createOcean } from '/js/ocean.js?v=1';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -37,6 +37,7 @@ window.__d4rk = { world };
 /* ---------- scroll engine: sections drive the camera ---------- */
 const secs = $$('main > section[data-cam]');
 const mk = $('.mk'), heroIn = $('.hero-in');
+let heroK = 1, wordK = 1;
 function layout() { secs.forEach(s => { s._top = s.offsetTop; s._h = s.offsetHeight; }); }
 function onScroll() {
   const y = scrollY, vh = innerHeight, mid = y + vh * 0.5;
@@ -44,7 +45,7 @@ function onScroll() {
   if (i < 0) i = mid < (secs[0]._top || 0) ? 0 : secs.length - 1;
   const s = secs[i], f = clamp((mid - s._top) / Math.max(1, s._h), 0, 1);
   if (world) { const nx = secs[i + 1]; world.go(s.dataset.cam, nx ? nx.dataset.cam : s.dataset.cam, clamp((f - 0.62) / 0.38, 0, 1)); }
-  if (mk) { const k = clamp(y / vh, 0, 1); mk.style.setProperty('--hy', (k * -70).toFixed(1) + 'px'); heroIn.style.opacity = (1 - k * 1.35).toFixed(3); }
+  if (mk) { const k = clamp(y / vh, 0, 1); mk.style.setProperty('--hy', (k * -70).toFixed(1) + 'px'); heroK = clamp(1 - k * 1.35, 0, 1); wordK = clamp(1 - y / (vh * 0.12), 0, 1); heroIn.style.opacity = heroK.toFixed(3); }
   const sh = s.id === 'top' ? 0.06 + 0.46 * clamp(y / vh, 0, 1) : s.id === 'end' ? 0.12 : mobile ? 0.7 : 0.56;
   document.documentElement.style.setProperty('--sh', sh.toFixed(3));
   $('#nav').classList.toggle('top', y < vh * 0.55);
@@ -130,6 +131,31 @@ if (!reduce && tubes.length) {
   }, 900 + Math.random() * 2600);
   setTimeout(flick, 2900);
 }
+/* ---------- the word's reflection: the world gets one canvas per letter, then reads where each letter sits and how lit it is ---------- */
+async function wordToWorld() {
+  if (!world || !world.word || !tubes.length) return;
+  try { await document.fonts.load('400 100px Ops'); } catch (e) { }
+  const rectsNow = () => tubes.map(t => { const r = t.el.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; });
+  const draw = () => {
+    const fsz = parseFloat(getComputedStyle(tubes[0].el).fontSize) || 120;
+    const cv = tubes.map(t => {
+      const r = t.el.getBoundingClientRect(), s = 2, ch = t.el.dataset.l || t.el.textContent;
+      const c = document.createElement('canvas'); c.width = Math.max(2, Math.ceil(r.width * s)); c.height = Math.max(2, Math.ceil(r.height * s));
+      const g = c.getContext('2d'); g.scale(s, s); g.font = `400 ${fsz}px Ops`; g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
+      const m = g.measureText(ch), A = m.fontBoundingBoxAscent || fsz * 0.86, Dd = m.fontBoundingBoxDescent || fsz * 0.22;
+      const base = (r.height - (A + Dd)) / 2 + A;
+      // the reflection fades the further it reaches from the waterline: strong at the letter's foot, faint at its head
+      const gr = g.createLinearGradient(0, base - fsz * 0.72, 0, base);
+      gr.addColorStop(0, 'rgba(255,255,255,.16)'); gr.addColorStop(0.55, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,1)');
+      g.fillStyle = gr; g.fillText(ch, 0, base);
+      return c;
+    });
+    world.word(cv, () => wordK > 0.003 ? { k: wordK, fs: tubes.map(t => t.v), rects: rectsNow() } : null);
+  };
+  draw();
+  let rz = 0; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(draw, 220); });
+}
+wordToWorld();
 let flowI = 0; setInterval(() => { if (document.hidden) return; const fs = $$('#flow .fs'); fs.forEach((el, i) => el.classList.toggle('on', i === flowI)); flowI = (flowI + 1) % fs.length; }, 1500);
 
 /* ---------- sound: deep water, all the time (browsers need one tap first) ---------- */
@@ -147,7 +173,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) ocean
 const QUIET = 'a,button,input,label,.ticket,.stats,.prints,.step,.fs,.facts,.risks,.list,.connect-card,.modal,#nav,.hidden-list,.ca';
 addEventListener('pointerdown', e => { if (!world || e.button > 0 || e.target.closest(QUIET)) return; if (world.dropAt(e.clientX, e.clientY)) ocean.plip(); }, { passive: true });
 let wakeT = 0;
-addEventListener('pointermove', e => { if (!world || reduce) return; const now = performance.now(); if (now - wakeT < 50) return; wakeT = now; if (e.target.closest && e.target.closest(QUIET)) return; world.wakeAt(e.clientX, e.clientY); }, { passive: true });
+addEventListener('pointermove', e => { if (!world || reduce) return; const now = performance.now(); if (now - wakeT < 50) return; wakeT = now; world.lampAt(e.clientX, e.clientY); if (e.target.closest && e.target.closest(QUIET)) return; world.wakeAt(e.clientX, e.clientY); }, { passive: true });
 window.__d4rk.ocean = ocean;
 
 /* ---------- wallet (Wallet Standard) ---------- */

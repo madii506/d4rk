@@ -58,8 +58,11 @@ export function createWorld(canvas, opt = {}) {
   const rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType });
   const texMat = new THREE.Matrix4();
   const NDROP = mobile ? 24 : 36;
+  // the word's own reflection is drawn into a second mirror target (alpha only), so the shader can invert what lies behind it
+  const wordRT = new THREE.WebGLRenderTarget(16, 16);
   const waterU = {
     uTime: U.uTime, uPow: U.uPow, uRefl: { value: rt.texture }, uTexMat: { value: texMat }, uPulse: { value: 0 },
+    uWord: { value: wordRT.texture }, uWordOn: { value: 0 }, uLamp: { value: new THREE.Vector4(0, 1, -20, 0) }, uLampP: { value: new THREE.Vector4(0, -20, 9, 0) },
     uDrops: { value: Array.from({ length: NDROP }, () => new THREE.Vector4(0, 0, -99, 0)) },
   };
   const water = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600, 1, 1), new THREE.ShaderMaterial({
@@ -67,6 +70,7 @@ export function createWorld(canvas, opt = {}) {
     vertexShader: `uniform mat4 uTexMat; varying vec3 vW; varying vec4 vRP;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vRP = uTexMat * w; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `uniform float uTime; uniform float uPow; uniform sampler2D uRefl; uniform float uPulse; uniform vec4 uDrops[${NDROP}];
+      uniform sampler2D uWord; uniform float uWordOn; uniform vec4 uLamp; uniform vec4 uLampP;
       varying vec3 vW; varying vec4 vRP; ${NOISE}
       void main(){
         vec3 V = normalize(cameraPosition - vW);
@@ -96,6 +100,8 @@ export function createWorld(canvas, opt = {}) {
         vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
         vec4 rp = vRP; rp.xy += N.xz * 0.5 * rp.w;
         vec3 refl = texture2DProj(uRefl, rp).rgb;
+        // the word on the water: where its reflection falls on the light band it goes dark, where it falls on dark it goes light
+        if (uWordOn > 0.5) { float wm = texture2DProj(uWord, rp).a; float Lr = dot(min(refl, vec3(1.6)), vec3(0.299, 0.587, 0.114)); refl = mix(refl, vec3(abs(Lr - 1.0)) * vec3(0.99, 1.0, 1.02), wm * 0.9); }
         float F = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 deep = vec3(0.0016, 0.0017, 0.0021);
         vec3 col = mix(deep, refl, clamp(F * 1.15, 0.0, 1.0));
@@ -103,6 +109,18 @@ export function createWorld(canvas, opt = {}) {
         vec3 Rr = reflect(-V, N);
         col += vec3(0.55, 0.57, 0.64) * (0.016 + 0.05 * F) * smoothstep(0.02, 0.42, Rr.y);
         col += vec3(0.55, 0.58, 0.66) * rings * 0.11 * (0.5 + uPulse);
+        // a small light you carry: wherever you point, the surface glints
+        if (uLamp.w > 0.002) {
+          vec3 Ld = normalize(uLamp.xyz - vW), Hh = normalize(Ld + V);
+          // tiny facets so the light breaks into glints instead of a smooth streak
+          vec2 fq = vW.xz * 7.0;
+          vec2 gn = vec2(vn(fq + uTime * 0.9) - 0.5, vn(fq * 1.31 - uTime * 0.7 + 9.1) - 0.5);
+          vec3 Ng = normalize(N + vec3(gn.x, 0.0, gn.y) * 0.3);
+          float sp = pow(max(dot(Ng, Hh), 0.0), 320.0);
+          vec2 dl = vW.xz - uLampP.xy;
+          float reach = exp(-dot(dl, dl) / uLampP.z);
+          col += vec3(0.8, 0.81, 0.84) * (sp * 3.2 + 0.006) * reach * uLamp.w;
+        }
         // low mist sliding over the surface in the middle distance
         float mm = fbm(vW.xz * 0.042 + vec2(uTime * 0.034, -uTime * 0.019));
         col += vec3(0.012, 0.0125, 0.0145) * smoothstep(0.46, 0.9, mm) * smoothstep(9.0, 32.0, dist) * (1.0 - smoothstep(110.0, 300.0, dist)) * (0.4 + 0.6 * uPow);
@@ -194,6 +212,49 @@ export function createWorld(canvas, opt = {}) {
     water.visible = true;
   }
 
+  // ---------------- the word on the water. The page hands over one canvas per letter and, every frame, where each
+  // letter sits on screen and how much power it has. Each letter becomes a plane far out, laid exactly behind its HTML
+  // twin, that only this extra mirror pass sees, so the pool shows the word's reflection right under the word.
+  const wordScene = new THREE.Scene();
+  const WORD = { meshes: [], src: null, on: false };
+  const wordGeo = new THREE.PlaneGeometry(1, 1);
+  const cc = new THREE.Color();
+  function setWord(canvases, src) {
+    for (const m of WORD.meshes) { wordScene.remove(m); m.material.map.dispose(); m.material.dispose(); }
+    WORD.meshes = canvases.map(c => {
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.Mesh(wordGeo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      m.frustumCulled = false; wordScene.add(m); return m;
+    });
+    WORD.src = src;
+  }
+  function renderWord() {
+    WORD.on = false;
+    if (!WORD.meshes.length || !WORD.src) return;
+    const s = WORD.src(); if (!s || !(s.k > 0.003)) return;
+    camera.updateMatrixWorld();
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2), tanH = tanV * camera.aspect, D = 420;
+    let any = false;
+    WORD.meshes.forEach((m, i) => {
+      const r = s.rects[i], f = s.fs[i] == null ? 1 : s.fs[i];
+      if (!r || !(r.w > 0)) { m.visible = false; return; }
+      const cx = ((r.l + r.w / 2) / W) * 2 - 1, cy = 1 - ((r.t + r.h / 2) / H) * 2;
+      m.position.set(cx * tanH * D, cy * tanV * D, -D).applyMatrix4(camera.matrixWorld);
+      m.quaternion.copy(camera.quaternion);
+      m.scale.set((r.w / W) * 2 * tanH * D, (r.h / H) * 2 * tanV * D, 1);
+      m.material.opacity = clamp(f, 0, 1) * s.k; m.visible = m.material.opacity > 0.003; any = any || m.visible;
+    });
+    if (!any) return;
+    const tm = renderer.toneMapping, ca = renderer.getClearAlpha(); renderer.getClearColor(cc);
+    renderer.toneMapping = THREE.NoToneMapping; renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(wordRT); renderer.clear(); renderer.render(wordScene, vCam); renderer.setRenderTarget(null);
+    renderer.setClearColor(cc, ca); renderer.toneMapping = tm;
+    WORD.on = true;
+  }
+
+  // ---------------- the lamp: a small light you carry over the pool. Its glints sit where you point.
+  const lamp = { x: 0, y: 1.3, z: -40, px: 0, pz: -20, tx: 0, ty: 1.3, tz: -40, tpx: 0, tpz: -20, i: 0, last: -99 };
+
   // ---------------- camera shots
   // l: how bright the strips burn in that shot (full on the hero and the end, lower behind reading sections)
   const CAMS = {
@@ -227,6 +288,7 @@ export function createWorld(canvas, opt = {}) {
     renderer.setSize(W, H, false);
     camera.aspect = W / H; camera.updateProjectionMatrix();
     rt.setSize(Math.max(64, Math.round(W * DPR * RT_SCALE)), Math.max(64, Math.round(H * DPR * RT_SCALE)));
+    wordRT.setSize(rt.width, rt.height);
   }
   resize(); addEventListener('resize', resize);
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -299,8 +361,14 @@ export function createWorld(canvas, opt = {}) {
     sky.position.copy(camera.position);
     for (const [m, kk] of stripMats) { const b = (0.94 + 0.06 * Math.sin(t * 0.37 + kk * 9)) * kk * cur.l * pw; m.color.setRGB(1.7 * b, 1.72 * b, 1.8 * b); }
     pulse *= Math.pow(0.3, dt); waterU.uPulse.value = pulse;
+    const want = t - lamp.last < 2.6 ? 1 : 0, lk = Math.min(1, dt * 7);
+    lamp.i += (want - lamp.i) * Math.min(1, dt * (want ? 3.5 : 0.9));
+    lamp.x += (lamp.tx - lamp.x) * lk; lamp.y += (lamp.ty - lamp.y) * lk; lamp.z += (lamp.tz - lamp.z) * lk;
+    lamp.px += (lamp.tpx - lamp.px) * lk; lamp.pz += (lamp.tpz - lamp.pz) * lk;
+    waterU.uLamp.value.set(lamp.x, lamp.y, lamp.z, lamp.i * (0.45 + 0.55 * cur.l));
+    waterU.uLampP.value.set(lamp.px, lamp.pz, 10 + 0.06 * Math.hypot(lamp.px - camera.position.x, lamp.pz - camera.position.z) ** 2, 0);
   }
-  function render() { reflect(); renderer.render(scene, camera); frames++; }
+  function render() { camera.updateMatrixWorld(); reflect(); renderWord(); waterU.uWordOn.value = WORD.on ? 1 : 0; renderer.render(scene, camera); frames++; }
   function loop() {
     cancelAnimationFrame(raf);
     const tick = () => { if (!running) return; const dt = Math.min(0.05, clock.getDelta()); step(dt); render(); raf = requestAnimationFrame(tick); };
@@ -317,6 +385,16 @@ export function createWorld(canvas, opt = {}) {
     pulse(v = 1) { pulse = Math.min(1.5, pulse + v); for (let i = 0; i < Math.max(1, Math.round(v * 3)); i++) randomDrop(); },
     drop(x, z, amp = 1) { addDrop(x, z, amp); },
     power(v) { pwGoal = clamp(v, 0, 1.2); },
+    word(canvases, src) { setWord(canvases, src); },
+    lampAt(cx, cy) {
+      const p = hit(cx, cy); if (!p) return false;
+      // put the lamp where its mirror image lies on your line of sight, a little past the point: the glints land under the cursor
+      const C = camera.position, k = 2.2;
+      lamp.tx = C.x + (p.x - C.x) * k; lamp.ty = -(C.y + (0 - C.y) * k); lamp.tz = C.z + (p.z - C.z) * k;
+      lamp.tpx = p.x; lamp.tpz = p.z;
+      if (lamp.i < 0.05) { lamp.x = lamp.tx; lamp.y = lamp.ty; lamp.z = lamp.tz; lamp.px = p.x; lamp.pz = p.z; }
+      lamp.last = clock.elapsedTime; return true;
+    },
     orders(n) { setOrders(n); },
     fall() { spawnFall(); },
     settle() { cur.p.copy(goal.p); cur.t.copy(goal.t); cur.fov = goal.fov; cur.l = goal.l; pw = pwGoal; },
