@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>D4RK</title>
+<meta name="description" content="A dark pool for memecoins. Hidden orders, matched wallet to wallet in one atomic swap at the mid price. No chart impact, no front-running.">
+<meta name="theme-color" content="#030304">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/fav-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/fav-64.png">
+<link rel="apple-touch-icon" href="/img/fav-180.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="D4RK">
+<meta property="og:description" content="A dark pool for memecoins. Trade in the dark.">
+<meta property="og:url" content="https://d4rk.vercel.app/">
+<meta property="og:image" content="https://d4rk.vercel.app/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="D4RK">
+<meta name="twitter:image" content="https://d4rk.vercel.app/img/og.jpg">
+<link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/blackops.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/d4rk.css?v=1">
+</head>
+<body class="loading">
+<canvas id="world" aria-hidden="true"></canvas>
+<div class="still" aria-hidden="true"></div>
+<div class="shade" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<nav id="nav" class="top">
+  <div class="nl"></div>
+  <div class="links" id="links">
+    <a href="#how">How it works</a><a href="#book">The book</a><a href="#trade">Trade</a><a href="#you">Your orders</a><a href="#tech" class="opt">Tech</a><a href="#limits" class="opt">Limits</a>
+  </div>
+  <div class="nr"><a class="btn primary sm" href="#trade" id="navGo">Trade</a><button class="btn ghost sm" id="walletBtn" type="button"><i class="wdot"></i><span id="walletLabel">Connect</span></button></div>
+</nav>
+
+<main>
+  <section id="top" class="hero" data-cam="hero">
+    <div class="hero-in">
+      <h1 class="mark rv" aria-label="D4RK"><b class="mk"><span>D</span><span>4</span><span>R</span><span>K</span></b></h1>
+      <div class="ctas rv"><a class="btn primary" href="#trade">Enter the dark</a><a class="btn ghost" href="#how">How it works</a></div>
+    </div>
+  </section>
+
+  <section id="how" class="band" data-cam="how">
+    <div class="wrap">
+      <div class="sec-h rv"><p class="eyebrow">01 — How it works</p><h2>Your order is a ripple nobody can read.</h2></div>
+      <div class="steps">
+        <article class="step rv"><div class="viz v1" aria-hidden="true"><i></i><i></i><i></i></div><b class="n">01</b><h3>Post it hidden</h3><p>Pick a pump.fun coin, buy or sell, and a size. Your wallet signs a message, not a transaction. The order never shows up in any list, feed or book.</p></article>
+        <article class="step rv"><div class="viz v2" aria-hidden="true"><span class="r r1"></span><span class="r r2"></span><span class="dot"></span></div><b class="n">02</b><h3>Matched at mid</h3><p>When another wallet's order crosses yours, D4RK pairs them at the coin's mid price, inside both your limits. Nobody else learns it happened.</p></article>
+        <article class="step rv"><div class="viz v3" aria-hidden="true"><svg viewBox="0 0 120 64"><rect class="tx" x="30" y="14" width="60" height="36" rx="8"/><circle class="s s1" cx="48" cy="32" r="5"/><circle class="s s2" cx="72" cy="32" r="5"/></svg></div><b class="n">03</b><h3>One transaction</h3><p>Coin goes one way, SOL the other, inside a single transaction. Both wallets sign it. If either side can't pay, nothing moves.</p></article>
+        <article class="step rv"><div class="viz v4" aria-hidden="true"><i></i></div><b class="n">04</b><h3>No chart, no candle</h3><p>The swap never touches the pool. No price impact, no slippage, and no bot sees it coming. The chart never knows.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="book" class="band" data-cam="book">
+    <div class="wrap">
+      <div class="sec-h rv"><p class="eyebrow">02 — The dark book</p><h2>You can count the orders. You can't see them.</h2><span class="upd" id="updated"><i></i><span>Reading the book…</span></span></div>
+      <div class="stats rv" id="stats">
+        <div><span>Hidden orders</span><b data-k="open">—</b></div>
+        <div><span>In the dark</span><b data-k="openSol">—</b></div>
+        <div><span>Matched</span><b data-k="matched">—</b></div>
+        <div><span>Settled volume</span><b data-k="volSol">—</b></div>
+      </div>
+      <div class="prints rv">
+        <div class="pr-h"><span>Prints</span><small>Trades show up here only after they settle, the way dark pools print.</small></div>
+        <div id="prints"><div class="empty">No prints yet. The first trade in the dark lands here.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="trade" class="band app" data-cam="trade">
+    <div class="wrap two">
+      <div class="rv">
+        <p class="eyebrow">03 — Trade in the dark</p>
+        <h2>Post a size the chart will never see.</h2>
+        <p class="body">Sell a bag without dumping the chart, or buy size without moving it. D4RK holds nothing and needs no deposit. Your order waits as a signed message until another wallet takes the other side.</p>
+        <ul class="hidden-list">
+          <li><b>Hidden:</b> your coin, side, size and limit. Nobody can query them.</li>
+          <li><b>Counted:</b> how many orders are waiting, and roughly how much SOL.</li>
+          <li><b>Public after:</b> the settled trade, like any transaction on Solana.</li>
+        </ul>
+      </div>
+      <div class="ticket rv" id="form">
+        <div class="seg side" id="side" role="group" aria-label="Side"><button type="button" data-s="buy" class="on">Buy</button><button type="button" data-s="sell">Sell</button></div>
+        <div class="pick" id="cPick"><button type="button" id="cPickBtn" class="pick-btn"><span id="cCur">Pick a coin</span><i class="chev"></i></button>
+          <div class="pick-list" id="cList" hidden><form id="cFind" autocomplete="off"><input id="cFindIn" placeholder="Search or paste a pump.fun address" aria-label="Search or paste an address"></form><div id="cRows"></div></div></div>
+        <label class="field"><span class="row1"><span id="amtLbl">You pay</span><button type="button" id="amtMax" hidden>Max</button></span><span class="row2"><input id="amt" inputmode="decimal" placeholder="0.0" aria-label="Amount"><span class="unit" id="amtUnit">SOL</span></span></label>
+        <div class="guard"><span>Fill only if the price is within</span><div class="chips" id="band"><button type="button" class="chip" data-v="1">1%</button><button type="button" class="chip on" data-v="3">3%</button><button type="button" class="chip" data-v="10">10%</button></div><span>of now</span></div>
+        <div class="guard"><span>Keep it in the dark for</span><div class="chips" id="ttl"><button type="button" class="chip" data-v="1">1h</button><button type="button" class="chip on" data-v="6">6h</button><button type="button" class="chip" data-v="24">24h</button></div></div>
+        <div class="prev" id="prev"></div>
+        <button class="btn primary wide" id="place" type="button">Sign &amp; hide order</button>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="you" class="band" data-cam="you">
+    <div class="wrap">
+      <div class="sec-h rv"><p class="eyebrow">04 — Your orders</p><h2>Only your wallet can read these.</h2><button class="btn ghost sm" id="refresh" type="button" hidden>Refresh</button></div>
+      <div id="mine" class="rv"></div>
+    </div>
+  </section>
+
+  <section id="tech" class="band" data-cam="tech">
+    <div class="wrap">
+      <div class="sec-h rv"><p class="eyebrow">05 — The tech</p><h2>One transaction. Two signatures. No program.</h2></div>
+      <div class="flow rv" id="flow">
+        <div class="fs"><b>1</b><h4>Advance a nonce</h4><p>The first signer's durable nonce keeps the trade valid while the other side gets round to signing.</p></div>
+        <div class="fs"><b>2</b><h4>Coin leg</h4><p>The seller's coins move straight into the buyer's own token account.</p></div>
+        <div class="fs"><b>3</b><h4>SOL leg</h4><p>The buyer's SOL moves straight to the seller's wallet.</p></div>
+        <div class="fs"><b>4</b><h4>Both sign</h4><p>It's one transaction, so it settles whole or not at all. Nobody can take one leg and walk.</p></div>
+        <span class="beam" aria-hidden="true"></span>
+      </div>
+      <div class="facts rv">
+        <div><b>No custody</b><p>D4RK never holds a coin or a lamport. Your order is a signed message; your tokens stay in your wallet until the trade settles.</p></div>
+        <div><b>No program</b><p>Every trade uses only Solana's own System, Token and Memo programs. Nothing new to audit, nothing to drain.</p></div>
+        <div><b>Simulated first</b><p>Every trade runs on mainnet in simulation before either wallet signs. If a leg can't pay, you see why.</p></div>
+        <div><b>Mid from the market</b><p>The price is the coin's live mid, read at the moment of the match. Each side's limit guards it.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="limits" class="band" data-cam="risk">
+    <div class="wrap two">
+      <div class="rv"><p class="eyebrow">06 — What D4RK can't do</p><h2>The dark has rules too.</h2></div>
+      <ul class="risks rv">
+        <li><b>It needs a counterparty.</b> An order only fills when another wallet wants the other side. Early on, most orders will wait, then expire.</li>
+        <li><b>The second signature takes time.</b> The price can move between the match and the second signature. Either side can walk away before signing.</li>
+        <li><b>Settled trades are public.</b> Before a trade, nobody can see it. After it settles, it's a Solana transaction like any other.</li>
+        <li><b>Some coins can't trade.</b> Tokens with transfer fees, transfer hooks or frozen accounts are refused before you sign.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="end" class="end" data-cam="end">
+    <div class="end-in rv">
+      <h2 class="endmark" aria-label="Trade in the dark."><span>T</span><span>R</span><span>A</span><span>D</span><span>E</span> <span>I</span><span>N</span> <span>T</span><span>H</span><span>E</span> <span>D</span><span>A</span><span>R</span><span>K</span><span>.</span></h2>
+      <a class="btn primary" href="#trade">Post a hidden order</a>
+      <div id="caBox" class="ca-box" hidden></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="wModal" hidden>
+  <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="wTitle">
+    <button class="x" id="wClose" type="button" aria-label="Close">✕</button>
+    <h3 id="wTitle">Connect a wallet</h3>
+    <div id="wList"></div>
+  </div>
+</div>
+<button class="snd" id="snd" type="button" aria-label="Sound" aria-pressed="false" title="Sound on"><i></i><i></i><i></i><i></i><i></i></button>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="/js/d4rk.js?v=1"></script>
+</body>
+</html>
