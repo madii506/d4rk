@@ -74,18 +74,27 @@ main { position: relative; z-index: 3; }
 .hero-in { max-width: 900px; transition: opacity .2s linear; }
 .mark { margin: -.06em 0 0; font: 400 clamp(78px, 13.5vw, 196px)/.9 'Ops', var(--sans); letter-spacing: .02em; color: var(--hi); }
 .mark span { display: inline-block; }
+.mark.rv { transform: none; filter: none; } /* the tubes lighting up is the reveal */
 .mk { display: inline-block; font-weight: inherit; position: relative; transform: translate3d(0, var(--hy, 0px), 0) perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .7s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
-/* the letters surface out of the dark one by one, then a strip of light keeps passing over them */
+/* four tubes in the dark: --f is each letter's power (set by the script). They struggle on, hum, and drop out now and then;
+   a letter that drops out leaves its outline, still there, just hidden. A strip of light keeps passing over the lit ones. */
+.mk span, .endmark span { --f: 1; position: relative; color: rgba(242, 242, 238, var(--f)); }
+.mk span::after, .endmark span::after { content: attr(data-l); position: absolute; left: 0; top: 0; color: transparent; -webkit-text-fill-color: transparent; -webkit-text-stroke: 1px rgba(236, 238, 244, .5); background: none; opacity: calc(1 - var(--f)); pointer-events: none; }
+.endmark span::after { -webkit-text-stroke-color: rgba(236, 238, 244, .4); }
 @keyframes rise { from { opacity: 0; transform: translateY(.16em) scale(.97); filter: blur(16px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
 @keyframes surface { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.025em); } }
-.mark.vis span { animation: rise 1.2s cubic-bezier(.2, .8, .2, 1) both, surface 6.4s ease-in-out 1.3s infinite; }
-.mark.vis span:nth-child(2) { animation-delay: .1s, 1.6s; } .mark.vis span:nth-child(3) { animation-delay: .2s, 1.9s; } .mark.vis span:nth-child(4) { animation-delay: .3s, 2.2s; }
+/* the hum: the whole word never sits perfectly still */
+@keyframes hum { 0%, 11% { opacity: 1; } 11.4% { opacity: .9; } 12% { opacity: 1; } 36.6% { opacity: .95; } 37.2% { opacity: .86; } 38% { opacity: 1; } 63% { opacity: .93; } 63.5% { opacity: 1; } 81% { opacity: .9; } 81.3% { opacity: .97; } 81.8%, 100% { opacity: 1; } }
+.mark.vis .mk { animation: hum 4.7s steps(1, end) 2.4s infinite; }
+.mark.vis span { animation: appear .6s ease both, surface 6.4s ease-in-out 1.3s infinite; }
+.mark.vis span:nth-child(2) { animation-delay: .08s, 1.6s; } .mark.vis span:nth-child(3) { animation-delay: .16s, 1.9s; } .mark.vis span:nth-child(4) { animation-delay: .24s, 2.2s; }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .mk span, .endmark span { color: transparent; -webkit-text-fill-color: transparent; -webkit-background-clip: text; background-clip: text;
-    background-image: linear-gradient(100deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, .95) 50%, rgba(255, 255, 255, 0) 62%), linear-gradient(180deg, #f6f6f2 0%, #dadad6 55%, #9b9ca2 100%);
+    background-image: linear-gradient(100deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, calc(.95 * var(--f))) 50%, rgba(255, 255, 255, 0) 62%), linear-gradient(180deg, rgba(246, 246, 242, var(--f)) 0%, rgba(218, 218, 214, var(--f)) 55%, rgba(155, 156, 162, var(--f)) 100%);
     background-size: 300% 100%, 100% 100%; background-position: 160% 0, 0 0; background-repeat: no-repeat; }
-  .mark.vis span { animation: rise 1.2s cubic-bezier(.2, .8, .2, 1) both, surface 6.4s ease-in-out 1.3s infinite, sweep 7s ease-in-out 2s infinite; }
-  .mark.vis span:nth-child(2) { animation-delay: .1s, 1.6s, 2.12s; } .mark.vis span:nth-child(3) { animation-delay: .2s, 1.9s, 2.24s; } .mark.vis span:nth-child(4) { animation-delay: .3s, 2.2s, 2.36s; }
+  .mark.vis span { animation: appear .6s ease both, surface 6.4s ease-in-out 1.3s infinite, sweep 7s ease-in-out 3s infinite; }
+  .mark.vis span:nth-child(2) { animation-delay: .08s, 1.6s, 3.12s; } .mark.vis span:nth-child(3) { animation-delay: .16s, 1.9s, 3.24s; } .mark.vis span:nth-child(4) { animation-delay: .24s, 2.2s, 3.36s; }
 }
 @keyframes sweep { 0%, 55% { background-position: 160% 0, 0 0; } 100% { background-position: -60% 0, 0 0; } }
 .mk::before { content: 'D4RK'; position: absolute; left: 0; top: 0; z-index: -1; color: transparent; text-shadow: 0 12px 60px rgba(0, 0, 0, .55); white-space: nowrap; pointer-events: none; }
